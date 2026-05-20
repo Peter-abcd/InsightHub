@@ -59,7 +59,7 @@ public class EventConsumer implements CommunityConstant {
             return;
         }
 
-// 新增：避免异常事件写入无效通知
+        // 新增：避免异常事件写入无效通知
         if (event.getEntityUserId() <= 0) {
             logger.warn("忽略无效通知事件, topic={}, entityUserId={}, entityType={}, entityId={}",
                     event.getTopic(), event.getEntityUserId(), event.getEntityType(), event.getEntityId());

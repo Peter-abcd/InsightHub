@@ -59,9 +59,13 @@ public class CommentController implements CommunityConstant {
         comment.setCreateTime(new Date());
         commentService.addComment(comment);
 
+        String eventType = comment.getEntityType() == ENTITY_TYPE_POST
+                ? BEHAVIOR_COMMENT_POST
+                : BEHAVIOR_REPLY_COMMENT;
+
         behaviorEventProducer.fireEvent(new BehaviorEvent()
                 .setUserId(hostHolder.getUser().getId())
-                .setEventType(BEHAVIOR_COMMENT_POST)
+                .setEventType(eventType)
                 .setEntityType(comment.getEntityType())
                 .setEntityId(comment.getEntityId())
                 .setTargetId(comment.getTargetId())

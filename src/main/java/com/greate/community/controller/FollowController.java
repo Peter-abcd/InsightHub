@@ -92,6 +92,15 @@ public class FollowController implements CommunityConstant{
 
         followService.unfollow(user.getId(), entityType, entityId);
 
+        if (entityType == ENTITY_TYPE_USER) {
+            behaviorEventProducer.fireEvent(new BehaviorEvent()
+                    .setUserId(user.getId())
+                    .setEventType(BEHAVIOR_UNFOLLOW_USER)
+                    .setEntityType(entityType)
+                    .setEntityId(entityId)
+                    .setEntityUserId(entityId));
+        }
+
         return CommunityUtil.getJSONString(0, "已取消关注");
     }
 

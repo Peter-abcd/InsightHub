@@ -1,10 +1,8 @@
 package com.greate.community.controller;
 
 import com.greate.community.dao.UserMapper;
-import com.greate.community.entity.Comment;
-import com.greate.community.entity.DiscussPost;
-import com.greate.community.entity.Event;
-import com.greate.community.entity.User;
+import com.greate.community.entity.*;
+import com.greate.community.event.BehaviorEventProducer;
 import com.greate.community.event.EventProducer;
 import com.greate.community.service.CommentService;
 import com.greate.community.service.DiscussPostService;
@@ -14,6 +12,7 @@ import com.greate.community.util.CommunityConstant;
 import com.greate.community.util.CommunityUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -40,6 +39,13 @@ public class DevDataController implements CommunityConstant {
 
     @Autowired
     private EventProducer eventProducer;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private BehaviorEventProducer behaviorEventProducer;
+
 
     private final Random random = new Random();
 
@@ -180,6 +186,190 @@ public class DevDataController implements CommunityConstant {
                     followService.follow(user.getId(), ENTITY_TYPE_USER, target.getId());
                 }
             }
+        }
+    }
+
+    @PostMapping("/mock-behavior")
+    public String mockBehavior(
+            @RequestParam(defaultValue = "500") int viewCount,
+            @RequestParam(defaultValue = "100") int searchCount,
+            @RequestParam(defaultValue = "200") int likeCount,
+            @RequestParam(defaultValue = "100") int commentCount,
+            @RequestParam(defaultValue = "50") int followCount
+    ) {
+        List<Map<String, Object>> users = loadMockUsers();
+        List<Map<String, Object>> posts = loadPosts();
+
+        if (users.isEmpty() || posts.isEmpty()) {
+            return "生成失败：请先调用 /dev/mock-data 生成用户和帖子";
+        }
+
+        mockViewBehavior(users, posts, viewCount);
+        mockSearchBehavior(users, searchCount);
+        mockLikeBehavior(users, posts, likeCount);
+        mockCommentBehavior(users, posts, commentCount);
+        mockFollowBehavior(users, followCount);
+
+        return "生成行为数据完成：浏览 " + viewCount
+                + " 次，搜索 " + searchCount
+                + " 次，点赞/取消点赞 " + likeCount
+                + " 次，评论 " + commentCount
+                + " 条，关注 " + followCount + " 次";
+    }
+
+    //3. 增加查询用户和帖子的工具方法
+    private List<Map<String, Object>> loadMockUsers() {
+        return jdbcTemplate.queryForList(
+                "select id, username from user where status = 1 order by id desc limit 200"
+        );
+    }
+
+    private List<Map<String, Object>> loadPosts() {
+        return jdbcTemplate.queryForList(
+                "select id, user_id, title from discuss_post where status = 0 order by id desc limit 500"
+        );
+    }
+
+    private int getInt(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        if (value == null) {
+            return 0;
+        }
+        return Integer.parseInt(value.toString());
+    }
+
+    //4. 增加浏览行为模拟
+    private void mockViewBehavior(List<Map<String, Object>> users,
+                                  List<Map<String, Object>> posts,
+                                  int count) {
+        for (int i = 0; i < count; i++) {
+            Map<String, Object> user = users.get(random.nextInt(users.size()));
+            Map<String, Object> post = posts.get(random.nextInt(posts.size()));
+
+            int userId = getInt(user, "id");
+            int postId = getInt(post, "id");
+            int postUserId = getInt(post, "user_id");
+
+            behaviorEventProducer.fireEvent(new BehaviorEvent()
+                    .setUserId(userId)
+                    .setEventType(BEHAVIOR_VIEW_POST)
+                    .setEntityType(ENTITY_TYPE_POST)
+                    .setEntityId(postId)
+                    .setEntityUserId(postUserId)
+                    .setPostId(postId));
+        }
+    }
+
+    //5. 增加搜索行为模拟
+    private void mockSearchBehavior(List<Map<String, Object>> users, int count) {
+        String[] keywords = {
+                "Kafka", "Redis", "Elasticsearch", "Spring Security",
+                "Flink", "ClickHouse", "MySQL", "用户行为分析",
+                "内容社区", "实时计算", "热榜", "点赞系统"
+        };
+
+        for (int i = 0; i < count; i++) {
+            Map<String, Object> user = users.get(random.nextInt(users.size()));
+            int userId = getInt(user, "id");
+            String keyword = keywords[random.nextInt(keywords.length)];
+
+            behaviorEventProducer.fireEvent(new BehaviorEvent()
+                    .setUserId(userId)
+                    .setEventType(BEHAVIOR_SEARCH_KEYWORD)
+                    .setKeyword(keyword));
+        }
+    }
+
+    //6. 增加点赞 / 取消点赞行为模拟
+    private void mockLikeBehavior(List<Map<String, Object>> users,
+                                  List<Map<String, Object>> posts,
+                                  int count) {
+        for (int i = 0; i < count; i++) {
+            Map<String, Object> user = users.get(random.nextInt(users.size()));
+            Map<String, Object> post = posts.get(random.nextInt(posts.size()));
+
+            int userId = getInt(user, "id");
+            int postId = getInt(post, "id");
+            int postUserId = getInt(post, "user_id");
+
+            likeService.like(userId, ENTITY_TYPE_POST, postId, postUserId);
+
+            int likeStatus = likeService.findEntityLikeStatus(userId, ENTITY_TYPE_POST, postId);
+
+            behaviorEventProducer.fireEvent(new BehaviorEvent()
+                    .setUserId(userId)
+                    .setEventType(likeStatus == 1 ? BEHAVIOR_LIKE_POST : BEHAVIOR_UNLIKE_POST)
+                    .setEntityType(ENTITY_TYPE_POST)
+                    .setEntityId(postId)
+                    .setEntityUserId(postUserId)
+                    .setPostId(postId));
+        }
+    }
+
+    //7. 增加评论行为模拟
+    private void mockCommentBehavior(List<Map<String, Object>> users,
+                                     List<Map<String, Object>> posts,
+                                     int count) {
+        String[] comments = {
+                "这个帖子很有参考价值。",
+                "Kafka 行为事件流这个设计不错。",
+                "后续可以接入 Flink 做实时统计。",
+                "ClickHouse 很适合做运营分析看板。",
+                "这个模块可以写进简历。",
+                "Redis 点赞模型需要注意幂等性。",
+                "搜索索引同步可以考虑失败补偿。",
+                "内容社区和实时分析结合得很好。"
+        };
+
+        for (int i = 0; i < count; i++) {
+            Map<String, Object> user = users.get(random.nextInt(users.size()));
+            Map<String, Object> post = posts.get(random.nextInt(posts.size()));
+
+            int userId = getInt(user, "id");
+            int postId = getInt(post, "id");
+
+            Comment comment = new Comment();
+            comment.setUserId(userId);
+            comment.setEntityType(ENTITY_TYPE_POST);
+            comment.setEntityId(postId);
+            comment.setTargetId(0);
+            comment.setContent(comments[random.nextInt(comments.length)]);
+            comment.setStatus(0);
+            comment.setCreateTime(new Date());
+
+            commentService.addComment(comment);
+
+            behaviorEventProducer.fireEvent(new BehaviorEvent()
+                    .setUserId(userId)
+                    .setEventType(BEHAVIOR_COMMENT_POST)
+                    .setEntityType(ENTITY_TYPE_POST)
+                    .setEntityId(postId)
+                    .setTargetId(0)
+                    .setPostId(postId));
+        }
+    }
+
+    // 8. 增加关注行为模拟
+    private void mockFollowBehavior(List<Map<String, Object>> users, int count) {
+        for (int i = 0; i < count; i++) {
+            Map<String, Object> user = users.get(random.nextInt(users.size()));
+            Map<String, Object> target = users.get(random.nextInt(users.size()));
+
+            int userId = getInt(user, "id");
+            int targetUserId = getInt(target, "id");
+
+            if (userId == targetUserId) {
+                continue;
+            }
+
+            followService.follow(userId, ENTITY_TYPE_USER, targetUserId);
+
+            behaviorEventProducer.fireEvent(new BehaviorEvent()
+                    .setUserId(userId)
+                    .setEventType(BEHAVIOR_FOLLOW_USER)
+                    .setEntityType(ENTITY_TYPE_USER)
+                    .setEntityId(targetUserId)
+                    .setEntityUserId(targetUserId));
         }
     }
 }
