@@ -4,11 +4,15 @@ import com.alibaba.fastjson.JSONObject;
 import com.greate.community.entity.BehaviorEvent;
 import com.greate.community.util.CommunityUtil;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +23,10 @@ import org.slf4j.LoggerFactory;
 import java.sql.Date;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 
 @Service
@@ -40,6 +48,21 @@ public class BehaviorEventClickHouseService {
 
     private static final Logger logger = LoggerFactory.getLogger(BehaviorEventClickHouseService.class);
 
+    @Value("${clickhouse.sink.batch-size:200}")
+    private int batchSize;
+
+    @Value("${clickhouse.sink.flush-interval-ms:3000}")
+    private long flushIntervalMs;
+
+    @Value("${clickhouse.sink.buffer-capacity:10000}")
+    private int bufferCapacity;
+
+    private LinkedBlockingQueue<BehaviorEvent> buffer;
+
+    private ScheduledExecutorService flushExecutor;
+
+    private final Object flushLock = new Object();
+
     @PostConstruct
     public void init() {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
@@ -50,8 +73,38 @@ public class BehaviorEventClickHouseService {
 
         this.clickHouseJdbcTemplate = new JdbcTemplate(dataSource);
 
-        logger.info("ClickHouse JdbcTemplate 初始化完成，url={}", url);
+        this.buffer = new LinkedBlockingQueue<>(bufferCapacity);
+
+        this.flushExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread thread = new Thread(r);
+            thread.setName("clickhouse-behavior-flush-thread");
+            thread.setDaemon(true);
+            return thread;
+        });
+
+        this.flushExecutor.scheduleWithFixedDelay(
+                this::flushSafely,
+                flushIntervalMs,
+                flushIntervalMs,
+                TimeUnit.MILLISECONDS
+        );
+
+        logger.info("ClickHouse 批量写入器初始化完成，url={}, batchSize={}, flushIntervalMs={}, bufferCapacity={}",
+                url, batchSize, flushIntervalMs, bufferCapacity);
     }
+
+    @PreDestroy
+    public void destroy() {
+        logger.info("应用关闭前刷新 ClickHouse 行为事件缓冲队列");
+
+        flushSafely();
+
+        if (flushExecutor != null) {
+            flushExecutor.shutdown();
+        }
+    }
+
+
 
 
     public void save(BehaviorEvent event) {
@@ -90,6 +143,98 @@ public class BehaviorEventClickHouseService {
 
     private String emptyToDefault(String value) {
         return value == null ? "" : value;
+    }
+
+    public void buffer(BehaviorEvent event) {
+        if (event == null) {
+            return;
+        }
+
+        boolean success = buffer.offer(event);
+
+        if (!success) {
+            logger.warn("ClickHouse 行为事件缓冲队列已满，触发同步刷新");
+            flush();
+            success = buffer.offer(event);
+        }
+
+        if (!success) {
+            logger.error("ClickHouse 行为事件缓冲队列写入失败，丢弃事件: eventType={}, userId={}",
+                    event.getEventType(), event.getUserId());
+            return;
+        }
+
+        if (buffer.size() >= batchSize) {
+            flush();
+        }
+    }
+
+    private void flushSafely() {
+        try {
+            flush();
+        } catch (Exception e) {
+            logger.error("ClickHouse 定时批量写入失败", e);
+        }
+    }
+
+    public void flush() {
+        synchronized (flushLock) {
+            if (buffer == null || buffer.isEmpty()) {
+                return;
+            }
+
+            List<BehaviorEvent> events = new ArrayList<>(batchSize);
+            buffer.drainTo(events, batchSize);
+
+            if (events.isEmpty()) {
+                return;
+            }
+
+            batchSave(events);
+        }
+    }
+
+
+    private void batchSave(List<BehaviorEvent> events) {
+        String sql = "insert into behavior_event " +
+                "(event_id, user_id, event_type, entity_type, entity_id, entity_user_id, " +
+                "target_id, post_id, keyword, ip, event_time, data) " +
+                "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+        clickHouseJdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
+            @Override
+            public void setValues(PreparedStatement ps, int i) throws SQLException {
+                BehaviorEvent event = events.get(i);
+
+                if (event.getEventId() == null) {
+                    event.setEventId(CommunityUtil.generateUUID());
+                }
+
+                long eventTime = event.getTimestamp() == 0
+                        ? System.currentTimeMillis()
+                        : event.getTimestamp();
+
+                ps.setString(1, event.getEventId());
+                ps.setInt(2, Math.max(event.getUserId(), 0));
+                ps.setString(3, emptyToDefault(event.getEventType()));
+                ps.setInt(4, event.getEntityType());
+                ps.setInt(5, Math.max(event.getEntityId(), 0));
+                ps.setInt(6, Math.max(event.getEntityUserId(), 0));
+                ps.setInt(7, Math.max(event.getTargetId(), 0));
+                ps.setInt(8, Math.max(event.getPostId(), 0));
+                ps.setString(9, emptyToDefault(event.getKeyword()));
+                ps.setString(10, emptyToDefault(event.getIp()));
+                ps.setTimestamp(11, new Timestamp(eventTime));
+                ps.setString(12, event.getData() == null ? "{}" : JSONObject.toJSONString(event.getData()));
+            }
+
+            @Override
+            public int getBatchSize() {
+                return events.size();
+            }
+        });
+
+        logger.info("ClickHouse 批量写入行为事件成功，count={}", events.size());
     }
 
 

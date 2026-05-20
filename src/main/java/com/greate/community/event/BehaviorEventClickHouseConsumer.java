@@ -47,8 +47,10 @@ public class BehaviorEventClickHouseConsumer implements CommunityConstant {
 
         try {
             BehaviorEvent event = JSONObject.parseObject(record.value(), BehaviorEvent.class);
-            clickHouseService.save(event);
-            logger.info("行为事件已写入 ClickHouse: eventType={}, userId={}, postId={}",
+//            clickHouseService.save(event);
+            clickHouseService.buffer(event);
+
+            logger.debug("行为事件已加入 ClickHouse 缓冲队列: eventType={}, userId={}, postId={}",
                     event.getEventType(), event.getUserId(), event.getPostId());
         } catch (Exception e) {
             logger.error("行为事件写入 ClickHouse 失败，message={}", record.value(), e);
