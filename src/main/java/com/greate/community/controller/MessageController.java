@@ -31,6 +31,14 @@ public class MessageController implements CommunityConstant {
     @Autowired
     private UserService userService;
 
+    private Integer toInt(Object value) {
+        if (value == null) {
+            return null;
+        }
+        return Integer.valueOf(value.toString());
+    }
+
+
     /**
      * 私信列表
      * @param model
@@ -303,13 +311,31 @@ public class MessageController implements CommunityConstant {
                 map.put("notice", notice);
                 // 内容
                 String content = HtmlUtils.htmlUnescape(notice.getContent());
-                Map<String, Object> data = JSONObject.parseObject(content, HashMap.class);
-                map.put("user", userService.findUserById((Integer) data.get("userId")));
-                map.put("entityType", data.get("entityType"));
-                map.put("entityId", data.get("entityId"));
-                map.put("postId", data.get("postId"));
-                // 发送系统通知的作者
-                map.put("fromUser", userService.findUserById(notice.getFromId()));
+                Map data = JSONObject.parseObject(content, HashMap.class);
+
+                Integer fromUserId = toInt(data.get("userId"));
+                Integer entityType = toInt(data.get("entityType"));
+                Integer entityId = toInt(data.get("entityId"));
+                Integer postId = toInt(data.get("postId"));
+
+                if (fromUserId == null || entityType == null || entityId == null) {
+                    continue;
+                }
+
+                User fromUser = userService.findUserById(fromUserId);
+                if (fromUser == null) {
+                    continue;
+                }
+
+                map.put("fromUser", fromUser);
+
+                // 兼容原来页面其他地方可能使用 map.user 的情况
+                map.put("user", fromUser);
+
+                map.put("entityType", entityType);
+                map.put("entityId", entityId);
+                map.put("postId", postId);
+
 
                 noticeVoList.add(map);
             }

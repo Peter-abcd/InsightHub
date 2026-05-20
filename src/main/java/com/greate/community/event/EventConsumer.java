@@ -52,6 +52,20 @@ public class EventConsumer implements CommunityConstant {
             return ;
         }
 
+        // 新增：避免自己触发自己的系统通知
+        if (event.getEntityUserId() == event.getUserId()) {
+            logger.info("忽略用户自己的事件通知, topic={}, userId={}, entityType={}, entityId={}",
+                    event.getTopic(), event.getUserId(), event.getEntityType(), event.getEntityId());
+            return;
+        }
+
+// 新增：避免异常事件写入无效通知
+        if (event.getEntityUserId() <= 0) {
+            logger.warn("忽略无效通知事件, topic={}, entityUserId={}, entityType={}, entityId={}",
+                    event.getTopic(), event.getEntityUserId(), event.getEntityType(), event.getEntityId());
+            return;
+        }
+
         // 发送系统通知
         Message message = new Message();
         message.setFromId(SYSTEM_USER_ID);
