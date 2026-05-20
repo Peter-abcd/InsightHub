@@ -1,17 +1,21 @@
 package com.greate.community.controller;
 
+import com.greate.community.entity.BehaviorEvent;
 import com.greate.community.entity.DiscussPost;
 import com.greate.community.entity.Page;
+import com.greate.community.event.BehaviorEventProducer;
 import com.greate.community.service.DiscussPostService;
 import com.greate.community.service.ElasticsearchService;
 import com.greate.community.service.LikeService;
 import com.greate.community.service.UserService;
 import com.greate.community.util.CommunityConstant;
+import com.greate.community.util.HostHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.*;
 
 /**
@@ -29,6 +33,13 @@ public class SearchController implements CommunityConstant {
     @Autowired
     private LikeService likeService;
 
+    @Autowired
+    private BehaviorEventProducer behaviorEventProducer;
+
+    @Autowired
+    private HostHolder hostHolder;
+
+
     /**
      * 搜索
      * search?keword=xxx
@@ -38,7 +49,7 @@ public class SearchController implements CommunityConstant {
      * @return
      */
     @GetMapping("/search")
-    public String search(String keyword, Page page, Model model) {
+    public String search(HttpServletRequest request, String keyword, Page page, Model model) {
         // 搜索帖子 (Spring 提供的 Page 当前页码从 0 开始计数)
         org.springframework.data.domain.Page<DiscussPost> searchResult =
             elasticsearchService.searchDiscussPost(keyword, page.getCurrent()-1, page.getLimit());
@@ -64,6 +75,14 @@ public class SearchController implements CommunityConstant {
         // 设置分页
         page.setPath("/search?keyword="+ keyword);
         page.setRows(searchResult == null ? 0 : (int) searchResult.getTotalElements());
+
+        int userId = hostHolder.getUser() == null ? 0 : hostHolder.getUser().getId();
+
+        behaviorEventProducer.fireEvent(new BehaviorEvent()
+                .setUserId(userId)
+                .setEventType(BEHAVIOR_SEARCH_KEYWORD)
+                .setKeyword(keyword)
+                .setIp(request.getRemoteAddr()));
 
         return "/site/search";
     }

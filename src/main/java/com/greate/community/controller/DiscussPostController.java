@@ -1,6 +1,7 @@
 package com.greate.community.controller;
 
 import com.greate.community.entity.*;
+import com.greate.community.event.BehaviorEventProducer;
 import com.greate.community.event.EventProducer;
 import com.greate.community.service.CommentService;
 import com.greate.community.service.DiscussPostService;
@@ -50,6 +51,10 @@ public class DiscussPostController implements CommunityConstant {
 
     @Autowired
     private RedisTemplate redisTemplate;
+
+    @Autowired
+    private BehaviorEventProducer behaviorEventProducer;
+
 
     // 网站域名
     @Value("${community.path.domain}")
@@ -154,6 +159,18 @@ public class DiscussPostController implements CommunityConstant {
     public String getDiscussPost(@PathVariable("discussPostId") int discussPostId, Model model, Page page) {
         // 帖子
         DiscussPost discussPost = discussPostService.findDiscussPostById(discussPostId);
+
+        int userId = hostHolder.getUser() == null ? 0 : hostHolder.getUser().getId();
+
+        behaviorEventProducer.fireEvent(new BehaviorEvent()
+                .setUserId(userId)
+                .setEventType(BEHAVIOR_VIEW_POST)
+                .setEntityType(ENTITY_TYPE_POST)
+                .setEntityId(discussPost.getId())
+                .setEntityUserId(discussPost.getUserId())
+                .setPostId(discussPost.getId()));
+
+
         String content = HtmlUtils.htmlUnescape(discussPost.getContent()); // 内容反转义，不然 markDown 格式无法显示
         discussPost.setContent(content);
         model.addAttribute("post", discussPost);

@@ -57,4 +57,16 @@ public interface CommunityConstant {
     // 权限：版主
     String AUTHORITY_MODERATOR = "moderator";
 
+
+    // 用户行为日志 Topic
+    String TOPIC_BEHAVIOR_LOG = "community_behavior_log";
+
+    // 用户行为类型
+    String BEHAVIOR_VIEW_POST = "VIEW_POST";
+    String BEHAVIOR_LIKE_POST = "LIKE_POST";
+    String BEHAVIOR_COMMENT_POST = "COMMENT_POST";
+    String BEHAVIOR_FOLLOW_USER = "FOLLOW_USER";
+    String BEHAVIOR_SEARCH_KEYWORD = "SEARCH_KEYWORD";
+
+
 }
