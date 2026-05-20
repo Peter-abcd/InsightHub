@@ -4,10 +4,7 @@ import com.greate.community.dao.UserMapper;
 import com.greate.community.entity.*;
 import com.greate.community.event.BehaviorEventProducer;
 import com.greate.community.event.EventProducer;
-import com.greate.community.service.CommentService;
-import com.greate.community.service.DiscussPostService;
-import com.greate.community.service.FollowService;
-import com.greate.community.service.LikeService;
+import com.greate.community.service.*;
 import com.greate.community.util.CommunityConstant;
 import com.greate.community.util.CommunityUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +42,9 @@ public class DevDataController implements CommunityConstant {
 
     @Autowired
     private BehaviorEventProducer behaviorEventProducer;
+
+    @Autowired
+    private ElasticsearchService elasticsearchService;
 
 
     private final Random random = new Random();
@@ -380,5 +380,28 @@ public class DevDataController implements CommunityConstant {
             success++;
         }
     }
+
+
+    @PostMapping("/rebuild-es")
+    public String rebuildEs() {
+        List<Integer> ids = jdbcTemplate.queryForList(
+                "select id from discuss_post where status != 2",
+                Integer.class
+        );
+
+        int count = 0;
+
+        for (Integer id : ids) {
+            DiscussPost post = discussPostService.findDiscussPostById(id);
+
+            if (post != null) {
+                elasticsearchService.saveDiscusspost(post);
+                count++;
+            }
+        }
+
+        return "ES 索引重建完成，共同步帖子 " + count + " 篇";
+    }
+
 
 }

@@ -67,4 +67,11 @@ public class BehaviorAnalyticsController {
         List<Map<String, Object>> data = clickHouseService.queryDailyEventTrend();
         return CommunityUtil.getJSONString(0, "查询成功", data);
     }
+
+    @PostMapping("/clear")
+    public String clear() {
+        clickHouseService.clearBehaviorEvents();
+        return CommunityUtil.getJSONString(0, "行为数据已清空");
+    }
+
 }

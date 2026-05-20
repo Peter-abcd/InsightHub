@@ -349,6 +349,11 @@ public class BehaviorEventClickHouseService {
         return value.toString();
     }
 
+    public void clearBehaviorEvents() {
+        clickHouseJdbcTemplate.execute("truncate table behavior_event");
+    }
+
+
 
 
 }
