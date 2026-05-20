@@ -25,12 +25,14 @@ public class BehaviorEventConsumer implements CommunityConstant {
 
         BehaviorEvent event = JSONObject.parseObject(record.value(), BehaviorEvent.class);
 
-        logger.info("收到用户行为事件: eventType={}, userId={}, entityType={}, entityId={}, postId={}, keyword={}",
+        logger.info("收到用户行为事件: eventType={}, userId={}, entityType={}, entityId={}, targetId={}, postId={}, keyword={}",
                 event.getEventType(),
                 event.getUserId(),
                 event.getEntityType(),
                 event.getEntityId(),
+                event.getTargetId(),
                 event.getPostId(),
                 event.getKeyword());
+
     }
 }

@@ -20,6 +20,9 @@ public class BehaviorEvent {
 
     private Map<String, Object> data = new HashMap<>();
 
+    private int targetId;
+
+
     public String getEventId() {
         return eventId;
     }
@@ -118,4 +121,14 @@ public class BehaviorEvent {
         this.data.put(key, value);
         return this;
     }
+
+    public int getTargetId() {
+        return targetId;
+    }
+
+    public BehaviorEvent setTargetId(int targetId) {
+        this.targetId = targetId;
+        return this;
+    }
+
 }

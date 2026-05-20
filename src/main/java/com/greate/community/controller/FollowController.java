@@ -1,8 +1,10 @@
 package com.greate.community.controller;
 
+import com.greate.community.entity.BehaviorEvent;
 import com.greate.community.entity.Event;
 import com.greate.community.entity.Page;
 import com.greate.community.entity.User;
+import com.greate.community.event.BehaviorEventProducer;
 import com.greate.community.event.EventProducer;
 import com.greate.community.service.FollowService;
 import com.greate.community.service.UserService;
@@ -38,6 +40,10 @@ public class FollowController implements CommunityConstant{
     @Autowired
     private EventProducer eventProducer;
 
+    @Autowired
+    private BehaviorEventProducer behaviorEventProducer;
+
+
     /**
      * 关注
      * @param entityType
@@ -50,6 +56,16 @@ public class FollowController implements CommunityConstant{
         User user = hostHolder.getUser();
 
         followService.follow(user.getId(), entityType, entityId);
+
+        if (entityType == ENTITY_TYPE_USER) {
+            behaviorEventProducer.fireEvent(new BehaviorEvent()
+                    .setUserId(user.getId())
+                    .setEventType(BEHAVIOR_FOLLOW_USER)
+                    .setEntityType(entityType)
+                    .setEntityId(entityId)
+                    .setEntityUserId(entityId));
+        }
+
 
         // 触发关注事件（系统通知）
         Event event = new Event()
