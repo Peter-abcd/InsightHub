@@ -140,7 +140,7 @@ public class UserService implements CommunityConstant {
         String content = templateEngine.process("/mail/activation", context);
 //        mailClient.sendMail(user.getEmail(),"激活 Echo 账号", content);
         if (activationRequired) {
-            mailClient.sendMail(user.getEmail(), "激活 Echo 账号", content);
+            mailClient.sendMail(user.getEmail(), "激活 InsightHub 账号", content);
         }
 
         return map;
@@ -361,7 +361,7 @@ public class UserService implements CommunityConstant {
         String url = domain + contextPath + "/activation/" + user.getId() + "/" + user.getActivationCode();
         context.setVariable("url", url);
         String content = templateEngine.process("/mail/activation", context);
-        mailClient.sendMail(email,"重置 Echo 账号密码", content);
+        mailClient.sendMail(email,"重置 InsightHub 账号密码", content);
 
         final String redisKey = "EmailCode4ResetPwd:" + account;
 
