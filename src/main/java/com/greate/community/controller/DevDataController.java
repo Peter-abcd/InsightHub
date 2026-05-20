@@ -351,7 +351,13 @@ public class DevDataController implements CommunityConstant {
 
     // 8. 增加关注行为模拟
     private void mockFollowBehavior(List<Map<String, Object>> users, int count) {
-        for (int i = 0; i < count; i++) {
+        int success = 0;
+        int maxRetry = count * 3;
+        int retry = 0;
+
+        while (success < count && retry < maxRetry) {
+            retry++;
+
             Map<String, Object> user = users.get(random.nextInt(users.size()));
             Map<String, Object> target = users.get(random.nextInt(users.size()));
 
@@ -370,6 +376,9 @@ public class DevDataController implements CommunityConstant {
                     .setEntityType(ENTITY_TYPE_USER)
                     .setEntityId(targetUserId)
                     .setEntityUserId(targetUserId));
+
+            success++;
         }
     }
+
 }

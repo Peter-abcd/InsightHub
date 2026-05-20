@@ -57,3 +57,8 @@ docker/app/uploads/
 # OS
 .DS_Store
 Thumbs.db
+
+
+docker/clickhouse/data/
+docker/clickhouse/log/
+

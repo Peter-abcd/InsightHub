@@ -69,3 +69,23 @@ services:
       - "9300:9300"
     volumes:
       - ./docker/elasticsearch/data:/usr/share/elasticsearch/data
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.8
+    container_name: echo-clickhouse
+    restart: always
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      CLICKHOUSE_DB: insighthub
+      CLICKHOUSE_USER: insighthub
+      CLICKHOUSE_PASSWORD: insighthub123
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_log:/var/log/clickhouse-server
+
+volumes:
+  clickhouse_data:
+  clickhouse_log:
