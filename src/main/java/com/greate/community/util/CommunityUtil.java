@@ -62,6 +62,15 @@ public class CommunityUtil {
         return getJSONString(code, null, null);
     }
 
+    public static String getJSONString(int code, String msg, Object data) {
+        JSONObject json = new JSONObject();
+        json.put("code", code);
+        json.put("msg", msg);
+        json.put("data", data);
+        return json.toJSONString();
+    }
+
+
     // editor.md 要求返回的 JSON 字符串格式
     public static String getEditorMdJSONString(int success, String message, String url) {
         JSONObject json = new JSONObject();

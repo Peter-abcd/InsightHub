@@ -10,9 +10,15 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.sql.Timestamp;
+import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.sql.Date;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 
 
 @Service
@@ -85,4 +91,119 @@ public class BehaviorEventClickHouseService {
     private String emptyToDefault(String value) {
         return value == null ? "" : value;
     }
+
+
+    /**
+     * 行为类型统计
+     */
+    public List<Map<String, Object>> queryEventTypeStats() {
+        String sql = "select event_type, count(*) as cnt " +
+                "from behavior_event " +
+                "group by event_type " +
+                "order by cnt desc";
+
+        return normalizeRows(clickHouseJdbcTemplate.queryForList(sql));
+    }
+
+    /**
+     * 热门帖子排行：按浏览量统计
+     */
+    public List<Map<String, Object>> queryHotPosts(int limit) {
+        String sql = "select post_id, count(*) as views " +
+                "from behavior_event " +
+                "where event_type = 'VIEW_POST' and post_id > 0 " +
+                "group by post_id " +
+                "order by views desc " +
+                "limit ?";
+
+        return normalizeRows(clickHouseJdbcTemplate.queryForList(sql, limit));
+    }
+
+    /**
+     * 搜索关键词排行
+     */
+    public List<Map<String, Object>> querySearchKeywords(int limit) {
+        String sql = "select keyword, count(*) as cnt " +
+                "from behavior_event " +
+                "where event_type = 'SEARCH_KEYWORD' and keyword != '' " +
+                "group by keyword " +
+                "order by cnt desc " +
+                "limit ?";
+
+        return normalizeRows(clickHouseJdbcTemplate.queryForList(sql, limit));
+    }
+
+    /**
+     * DAU：按日期统计活跃用户数
+     */
+    public List<Map<String, Object>> queryDau() {
+        String sql = "select event_date, uniqExact(user_id) as dau " +
+                "from behavior_event " +
+                "where user_id > 0 " +
+                "group by event_date " +
+                "order by event_date desc";
+
+        return normalizeRows(clickHouseJdbcTemplate.queryForList(sql));
+    }
+
+    /**
+     * 每日行为趋势
+     */
+    public List<Map<String, Object>> queryDailyEventTrend() {
+        String sql = "select event_date, event_type, count(*) as cnt " +
+                "from behavior_event " +
+                "group by event_date, event_type " +
+                "order by event_date desc, cnt desc";
+
+        return normalizeRows(clickHouseJdbcTemplate.queryForList(sql));
+    }
+
+    private List<Map<String, Object>> normalizeRows(List<Map<String, Object>> rows) {
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        for (Map<String, Object> row : rows) {
+            Map<String, Object> newRow = new LinkedHashMap<>();
+
+            for (Map.Entry<String, Object> entry : row.entrySet()) {
+                newRow.put(entry.getKey(), normalizeValue(entry.getValue()));
+            }
+
+            result.add(newRow);
+        }
+
+        return result;
+    }
+
+    private Object normalizeValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+
+//        System.out.println("ClickHouse value class = " + value.getClass() + ", value = " + value);
+
+        if (value instanceof String || value instanceof Boolean) {
+            return value;
+        }
+
+        if (value instanceof Number) {
+            Number number = (Number) value;
+
+            if (value instanceof Float || value instanceof Double) {
+                return number.doubleValue();
+            }
+
+            return number.longValue();
+        }
+
+        if (value instanceof java.sql.Date
+                || value instanceof java.sql.Timestamp
+                || value instanceof java.util.Date) {
+            return value.toString();
+        }
+
+        return value.toString();
+    }
+
+
+
 }
