@@ -42,7 +42,7 @@ public class LikeService {
                     redisOperations.opsForValue().decrement(userLikeKey);
                 }
                 else {
-                    redisTemplate.opsForSet().add(entityLikeKey, userId);
+                    redisOperations.opsForSet().add(entityLikeKey, userId);
                     redisOperations.opsForValue().increment(userLikeKey);
                 }
 
@@ -81,9 +81,19 @@ public class LikeService {
      */
     public int findUserLikeCount(int userId) {
         String userLikeKey = RedisKeyUtil.getUserLikeKey(userId);
-        Integer count = (Integer) redisTemplate.opsForValue().get(userLikeKey);
-        return count == null ? 0 : count;
+        Object count = redisTemplate.opsForValue().get(userLikeKey);
+
+        if (count == null) {
+            return 0;
+        }
+
+        if (count instanceof Number) {
+            return ((Number) count).intValue();
+        }
+
+        return Integer.parseInt(count.toString());
     }
+
 
 }
 

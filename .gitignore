@@ -31,3 +31,34 @@ build/
 
 ### VS Code ###
 .vscode/
+
+
+# Maven
+*.class
+
+# IDE
+.idea/
+
+# Logs
+logs/
+*.log
+
+# Runtime upload files
+upload/
+uploads/
+
+# Docker runtime data
+docker/mysql/data/
+docker/redis/data/
+docker/elasticsearch/data/
+docker/app/logs/
+docker/app/uploads/
+
+# OS
+.DS_Store
+Thumbs.db
+
+
+docker/clickhouse/data/
+docker/clickhouse/log/
+

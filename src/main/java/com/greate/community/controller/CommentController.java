@@ -1,8 +1,10 @@
 package com.greate.community.controller;
 
+import com.greate.community.entity.BehaviorEvent;
 import com.greate.community.entity.Comment;
 import com.greate.community.entity.DiscussPost;
 import com.greate.community.entity.Event;
+import com.greate.community.event.BehaviorEventProducer;
 import com.greate.community.event.EventProducer;
 import com.greate.community.service.CommentService;
 import com.greate.community.service.DiscussPostService;
@@ -40,6 +42,10 @@ public class CommentController implements CommunityConstant {
     @Autowired
     private RedisTemplate redisTemplate;
 
+    @Autowired
+    private BehaviorEventProducer behaviorEventProducer;
+
+
     /**
      * 添加评论
      * @param discussPostId
@@ -52,6 +58,19 @@ public class CommentController implements CommunityConstant {
         comment.setStatus(0);
         comment.setCreateTime(new Date());
         commentService.addComment(comment);
+
+        String eventType = comment.getEntityType() == ENTITY_TYPE_POST
+                ? BEHAVIOR_COMMENT_POST
+                : BEHAVIOR_REPLY_COMMENT;
+
+        behaviorEventProducer.fireEvent(new BehaviorEvent()
+                .setUserId(hostHolder.getUser().getId())
+                .setEventType(eventType)
+                .setEntityType(comment.getEntityType())
+                .setEntityId(comment.getEntityId())
+                .setTargetId(comment.getTargetId())
+                .setPostId(discussPostId));
+
 
         // 触发评论事件（系统通知）
         Event event = new Event()

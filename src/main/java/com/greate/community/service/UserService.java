@@ -46,6 +46,9 @@ public class UserService implements CommunityConstant {
     @Value("${server.servlet.context-path}")
     private String contextPath;
 
+    @Value("${community.register.activation-required:true}")
+    private boolean activationRequired;
+
     /**
      * 根据 Id 查询用户
      * @param id
@@ -113,8 +116,16 @@ public class UserService implements CommunityConstant {
         user.setSalt(CommunityUtil.generateUUID().substring(0, 5)); // salt
         user.setPassword(CommunityUtil.md5(user.getPassword() + user.getSalt())); // 加盐加密
         user.setType(0); // 默认普通用户
-        user.setStatus(0); // 默认未激活
-        user.setActivationCode(CommunityUtil.generateUUID()); // 激活码
+//        user.setStatus(0); // 默认未激活
+//        user.setActivationCode(CommunityUtil.generateUUID()); // 激活码
+
+        user.setActivationCode(CommunityUtil.generateUUID());
+        if (activationRequired) {
+            user.setStatus(0);
+        } else {
+            user.setStatus(1);
+        }
+
         // 随机头像（用户登录后可以自行修改）
         user.setHeaderUrl(String.format("http://images.nowcoder.com/head/%dt.png", new Random().nextInt(1000)));
         user.setCreateTime(new Date()); // 注册时间
@@ -127,7 +138,10 @@ public class UserService implements CommunityConstant {
         String url = domain + contextPath + "/activation/" + user.getId() + "/" + user.getActivationCode();
         context.setVariable("url", url);
         String content = templateEngine.process("/mail/activation", context);
-        mailClient.sendMail(user.getEmail(),"激活 Echo 账号", content);
+//        mailClient.sendMail(user.getEmail(),"激活 Echo 账号", content);
+        if (activationRequired) {
+            mailClient.sendMail(user.getEmail(), "激活 InsightHub 账号", content);
+        }
 
         return map;
     }
@@ -347,7 +361,7 @@ public class UserService implements CommunityConstant {
         String url = domain + contextPath + "/activation/" + user.getId() + "/" + user.getActivationCode();
         context.setVariable("url", url);
         String content = templateEngine.process("/mail/activation", context);
-        mailClient.sendMail(email,"重置 Echo 账号密码", content);
+        mailClient.sendMail(email,"重置 InsightHub 账号密码", content);
 
         final String redisKey = "EmailCode4ResetPwd:" + account;
 

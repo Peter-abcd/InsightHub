@@ -1,0 +1,4 @@
+
+
+用户行为事件模拟
+curl.exe -X POST "http://localhost:8080/dev/mock-behavior?viewCount=1000&searchCount=300&likeCount=300&commentCount=100&followCount=50"

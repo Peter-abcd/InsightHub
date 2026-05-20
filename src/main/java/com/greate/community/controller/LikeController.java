@@ -1,7 +1,9 @@
 package com.greate.community.controller;
 
+import com.greate.community.entity.BehaviorEvent;
 import com.greate.community.entity.Event;
 import com.greate.community.entity.User;
+import com.greate.community.event.BehaviorEventProducer;
 import com.greate.community.event.EventProducer;
 import com.greate.community.service.LikeService;
 import com.greate.community.util.CommunityConstant;
@@ -34,6 +36,10 @@ public class LikeController implements CommunityConstant {
     @Autowired
     private RedisTemplate redisTemplate;
 
+    @Autowired
+    private BehaviorEventProducer behaviorEventProducer;
+
+
     /**
      * 点赞
      * @param entityType
@@ -46,12 +52,25 @@ public class LikeController implements CommunityConstant {
     @ResponseBody
     public String like(int entityType, int entityId, int entityUserId, int postId) {
         User user = hostHolder.getUser();
-        // 点赞
+
+        // 点赞 / 取消点赞
         likeService.like(user.getId(), entityType, entityId, entityUserId);
-        // 点赞数量
+
+        // 查询点赞状态
         long likeCount = likeService.findEntityLikeCount(entityType, entityId);
-        // 点赞状态
         int likeStatus = likeService.findEntityLikeStatus(user.getId(), entityType, entityId);
+
+        // 行为埋点：区分点赞和取消点赞
+        if (entityType == ENTITY_TYPE_POST) {
+            behaviorEventProducer.fireEvent(new BehaviorEvent()
+                    .setUserId(user.getId())
+                    .setEventType(likeStatus == 1 ? BEHAVIOR_LIKE_POST : BEHAVIOR_UNLIKE_POST)
+                    .setEntityType(entityType)
+                    .setEntityId(entityId)
+                    .setEntityUserId(entityUserId)
+                    .setPostId(postId));
+        }
+
 
         Map<String, Object> map = new HashMap<>();
         map.put("likeCount", likeCount);
